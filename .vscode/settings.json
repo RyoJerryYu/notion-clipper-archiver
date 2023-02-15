@@ -1,0 +1,9 @@
+{
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true,
+        "source.organizeImports": false
+    },
+    "jest.autoRun": "off",
+}

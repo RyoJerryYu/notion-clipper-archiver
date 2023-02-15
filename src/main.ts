@@ -1,4 +1,5 @@
 import * as core from '@actions/core'
+import {addItem} from './notion'
 import {wait} from './wait'
 
 async function run(): Promise<void> {
@@ -9,6 +10,7 @@ async function run(): Promise<void> {
     core.debug(new Date().toTimeString())
     await wait(parseInt(ms, 10))
     core.debug(new Date().toTimeString())
+    // addItem('Yurts in Big Sur, California')
 
     core.setOutput('time', new Date().toTimeString())
   } catch (error) {
