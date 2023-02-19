@@ -14,11 +14,18 @@ jobs:
       - run: |
           npm install
       - run: |
+          make build
+      - run: | 
           npm run all
+        env:
+          INPUT_DATABASE_ID: ${{ secrets.DATABASE_ID }}
+          INPUT_NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: ./
         with:
-          milliseconds: 1000
+          database_id: ${{ secrets.DATABASE_ID }}
+          notion_token: ${{ secrets.NOTION_TOKEN }}
+

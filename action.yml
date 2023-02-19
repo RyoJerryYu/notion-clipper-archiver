@@ -2,10 +2,12 @@ name: 'Your name here'
 description: 'Provide a description here'
 author: 'Your name or organization here'
 inputs:
-  milliseconds: # change this
+  database_id:
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+    description: 'notion database id used for notion web clipper'
+  notion_token:
+    required: true
+    description: 'notion token to access notion api'
 runs:
   using: 'node16'
   main: 'dist/index.js'
