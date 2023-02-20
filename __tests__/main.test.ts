@@ -11,5 +11,11 @@ test('test runs', () => {
   const options: cp.ExecFileSyncOptions = {
     env: process.env
   }
-  console.log(cp.execFileSync(np, [ip], options).toString())
+  try {
+    console.log(cp.execFileSync(np, [ip], options).toString())
+  } catch (e: any) {
+    console.log(e.stdout.toString())
+    console.log(e.stderr.toString())
+    throw e
+  }
 }, 100000)

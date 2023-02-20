@@ -45,9 +45,11 @@ async function run(): Promise<void> {
           continue
         }
 
-        const title = result.properties.Title
+        const title = result.properties.Name
         if (!title || title.type !== 'title') {
-          core.warning(`no title for page ${result.id}`)
+          core.warning(
+            `no title for page ${result.id}: ${JSON.stringify(title)}}`
+          )
           continue
         }
 
@@ -78,9 +80,11 @@ async function run(): Promise<void> {
             continue
           }
 
-          const title = result.properties.Title
+          const title = result.properties.Name
           if (!title || title.type !== 'title') {
-            core.warning(`no title for page ${result.id}`)
+            core.warning(
+              `no title for page ${result.id}: ${JSON.stringify(title)}`
+            )
             continue
           }
 

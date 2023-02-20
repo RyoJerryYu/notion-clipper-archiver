@@ -81,9 +81,9 @@ function run() {
                         core.warning(`unexpected object type ${result.id}`);
                         continue;
                     }
-                    const title = result.properties.Title;
+                    const title = result.properties.Name;
                     if (!title || title.type !== 'title') {
-                        core.warning(`no title for page ${result.id}`);
+                        core.warning(`no title for page ${result.id}: ${JSON.stringify(title)}}`);
                         continue;
                     }
                     const titleText = title.title
@@ -108,9 +108,9 @@ function run() {
                             core.warning(`unexpected object type ${result.id}`);
                             continue;
                         }
-                        const title = result.properties.Title;
+                        const title = result.properties.Name;
                         if (!title || title.type !== 'title') {
-                            core.warning(`no title for page ${result.id}`);
+                            core.warning(`no title for page ${result.id}: ${JSON.stringify(title)}`);
                             continue;
                         }
                         const titleText = title.title
