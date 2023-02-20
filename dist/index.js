@@ -77,25 +77,19 @@ function run() {
                 core.info(`querying database ${dbId} done: ${JSON.stringify(res)}`);
                 return res;
             });
-            const handlePages = (page) => {
-                const title = page.properties.Name;
-                if (!title || title.type !== 'title') {
-                    core.warning(`no title for page ${page.id}: ${JSON.stringify(title)}}`);
-                    return { res: '', ok: false };
-                }
-                const titleText = title.title
-                    .filter(t => t.type === 'text')
-                    .map(t => t.plain_text)
-                    .join('');
-                core.info(`found page ${titleText}`);
-                return { res: titleText, ok: true };
-            };
             core.debug('querying database');
-            const allTitles = yield (0, notion_1.forEachPages)(queryDatabase, handlePages);
+            const allReses = yield (0, notion_1.forEachPages)(queryDatabase, notion_1.getResultFromPageResponse);
             core.debug('querying database done');
-            core.info(`found ${allTitles.length} pages`);
+            core.info(`found ${allReses.length} pages`);
             core.setOutput('db_id', dbId);
-            core.setOutput('titles', allTitles.join(','));
+            core.info(`allreses: ${JSON.stringify(allReses)}`);
+            core.info(`start test get content`);
+            const pageId = allReses[0].id;
+            core.info(`pageId: ${pageId}`);
+            const retrieveBlockResponse = yield notionCli.blocks.children.list({
+                block_id: pageId
+            });
+            core.info(`retrieveBlockResponse: ${JSON.stringify(retrieveBlockResponse)}`);
         }
         catch (error) {
             if (error instanceof Error) {
@@ -150,7 +144,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.forEachPages = void 0;
+exports.getResultFromPageResponse = exports.forEachPages = void 0;
 const client_1 = __nccwpck_require__(324);
 const core = __importStar(__nccwpck_require__(2186));
 function isFullPageOrWarning(result) {
@@ -163,28 +157,64 @@ function isFullPageOrWarning(result) {
 function forEachPages(queryDatabase, handlePages) {
     return __awaiter(this, void 0, void 0, function* () {
         const handledReses = [];
-        const filterAndHandleResults = (queryRes) => {
+        const filterAndHandleResults = (queryRes) => __awaiter(this, void 0, void 0, function* () {
             if (queryRes.results) {
                 const pages = queryRes.results.filter(isFullPageOrWarning);
                 for (const page of pages) {
-                    const { res: handledRes, ok } = handlePages(page);
-                    if (ok) {
-                        handledReses.push(handledRes);
+                    const handledRes = yield handlePages(page);
+                    if (handledRes.ok) {
+                        handledReses.push(handledRes.res);
                     }
                 }
             }
-        };
+        });
         let res = yield queryDatabase();
-        filterAndHandleResults(res);
+        yield filterAndHandleResults(res);
         while (res.has_more && res.next_cursor) {
             const cursor = res.next_cursor;
             res = yield queryDatabase(cursor);
-            filterAndHandleResults(res);
+            yield filterAndHandleResults(res);
         }
         return handledReses;
     });
 }
 exports.forEachPages = forEachPages;
+function getResultFromPageResponse(page) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const titleProperty = page.properties.Name;
+        if (!titleProperty || titleProperty.type !== 'title') {
+            core.warning(`no title for page ${page.id}: ${JSON.stringify(titleProperty)}}`);
+            return { ok: false };
+        }
+        const title = titleProperty.title
+            .filter(t => t.type === 'text')
+            .map(t => t.plain_text)
+            .join('');
+        core.info(`found page ${title}`);
+        const urlProperty = page.properties.URL;
+        if (!urlProperty || urlProperty.type !== 'url' || !urlProperty.url) {
+            core.warning(`no url for page ${page.id}: ${JSON.stringify(urlProperty)}}`);
+            return { ok: false };
+        }
+        const url = urlProperty.url;
+        const wantedRes = {
+            id: page.id,
+            title,
+            url
+        };
+        const tagsProperty = page.properties.Tags;
+        if (tagsProperty && tagsProperty.type === 'multi_select') {
+            const tags = tagsProperty.multi_select.map(t => t.name);
+            wantedRes.tags = tags;
+        }
+        const createdTimeProperty = page.properties.Created;
+        if (createdTimeProperty && createdTimeProperty.type === 'created_time') {
+            wantedRes.created_time = createdTimeProperty.created_time;
+        }
+        return { res: wantedRes, ok: true };
+    });
+}
+exports.getResultFromPageResponse = getResultFromPageResponse;
 
 
 /***/ }),

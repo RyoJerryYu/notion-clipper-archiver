@@ -1,7 +1,6 @@
 import * as core from '@actions/core'
 import {Client} from '@notionhq/client'
-import {PageObjectResponse} from '@notionhq/client/build/src/api-endpoints'
-import {forEachPages} from './notion'
+import {forEachPages, getResultFromPageResponse} from './notion'
 
 function queryFilter() {
   return {
@@ -42,29 +41,26 @@ async function run(): Promise<void> {
       return res
     }
 
-    const handlePages = (page: PageObjectResponse) => {
-      const title = page.properties.Name
-      if (!title || title.type !== 'title') {
-        core.warning(`no title for page ${page.id}: ${JSON.stringify(title)}}`)
-        return {res: '', ok: false}
-      }
-
-      const titleText = title.title
-        .filter(t => t.type === 'text')
-        .map(t => t.plain_text)
-        .join('')
-      core.info(`found page ${titleText}`)
-      return {res: titleText, ok: true}
-    }
-
     core.debug('querying database')
-    const allTitles = await forEachPages(queryDatabase, handlePages)
+    const allReses = await forEachPages(
+      queryDatabase,
+      getResultFromPageResponse
+    )
     core.debug('querying database done')
 
-    core.info(`found ${allTitles.length} pages`)
+    core.info(`found ${allReses.length} pages`)
 
     core.setOutput('db_id', dbId)
-    core.setOutput('titles', allTitles.join(','))
+    core.info(`allreses: ${JSON.stringify(allReses)}`)
+
+    core.info(`start test get content`)
+    const pageId = allReses[0].id
+    core.info(`pageId: ${pageId}`)
+
+    const retrieveBlockResponse = await notionCli.blocks.children.list({
+      block_id: pageId
+    })
+    core.info(`retrieveBlockResponse: ${JSON.stringify(retrieveBlockResponse)}`)
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)
