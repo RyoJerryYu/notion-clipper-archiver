@@ -1,5 +1,7 @@
 import * as core from '@actions/core'
-import {Client, isFullPage} from '@notionhq/client'
+import {Client} from '@notionhq/client'
+import {PageObjectResponse} from '@notionhq/client/build/src/api-endpoints'
+import {forEachPages} from './notion'
 
 function queryFilter() {
   return {
@@ -28,75 +30,38 @@ async function run(): Promise<void> {
     core.info(`using token ${notionToken}`)
     const notionCli = new Client({auth: notionToken})
 
-    const allTitles: string[] = []
-    core.debug('querying database')
-    let res = await notionCli.databases.query({
-      database_id: dbId,
-      filter: queryFilter(),
-      sorts: querySorts()
-    })
-    core.debug('querying database done')
-    core.info(JSON.stringify(res))
-
-    if (res.results) {
-      for (const result of res.results) {
-        if (!isFullPage(result)) {
-          core.warning(`unexpected object type ${result.id}`)
-          continue
-        }
-
-        const title = result.properties.Name
-        if (!title || title.type !== 'title') {
-          core.warning(
-            `no title for page ${result.id}: ${JSON.stringify(title)}}`
-          )
-          continue
-        }
-
-        const titleText = title.title
-          .filter(t => t.type === 'text')
-          .map(t => t.plain_text)
-          .join('')
-        core.info(`found page ${titleText}`)
-        allTitles.push(titleText)
-      }
-    }
-
-    core.info(`found ${allTitles.length} pages`)
-
-    while (res.has_more && res.next_cursor) {
-      core.warning('has more')
-      const cursor = res.next_cursor
-
-      res = await notionCli.databases.query({
+    const queryDatabase = async (cursor?: string) => {
+      const res = await notionCli.databases.query({
         database_id: dbId,
-        start_cursor: cursor
+        start_cursor: cursor,
+        filter: queryFilter(),
+        sorts: querySorts()
       })
 
-      if (res.results) {
-        for (const result of res.results) {
-          if (!isFullPage(result)) {
-            core.warning(`unexpected object type ${result.id}`)
-            continue
-          }
-
-          const title = result.properties.Name
-          if (!title || title.type !== 'title') {
-            core.warning(
-              `no title for page ${result.id}: ${JSON.stringify(title)}`
-            )
-            continue
-          }
-
-          const titleText = title.title
-            .filter(t => t.type === 'text')
-            .map(t => t.plain_text)
-            .join('')
-          core.info(`found page ${titleText}`)
-          allTitles.push(titleText)
-        }
-      }
+      core.info(`querying database ${dbId} done: ${JSON.stringify(res)}`)
+      return res
     }
+
+    const handlePages = (page: PageObjectResponse) => {
+      const title = page.properties.Name
+      if (!title || title.type !== 'title') {
+        core.warning(`no title for page ${page.id}: ${JSON.stringify(title)}}`)
+        return {res: '', ok: false}
+      }
+
+      const titleText = title.title
+        .filter(t => t.type === 'text')
+        .map(t => t.plain_text)
+        .join('')
+      core.info(`found page ${titleText}`)
+      return {res: titleText, ok: true}
+    }
+
+    core.debug('querying database')
+    const allTitles = await forEachPages(queryDatabase, handlePages)
+    core.debug('querying database done')
+
+    core.info(`found ${allTitles.length} pages`)
 
     core.setOutput('db_id', dbId)
     core.setOutput('titles', allTitles.join(','))

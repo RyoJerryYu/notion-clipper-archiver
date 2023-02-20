@@ -41,6 +41,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const client_1 = __nccwpck_require__(324);
+const notion_1 = __nccwpck_require__(8605);
 function queryFilter() {
     return {
         property: 'Tags',
@@ -66,62 +67,33 @@ function run() {
             core.setSecret(notionToken);
             core.info(`using token ${notionToken}`);
             const notionCli = new client_1.Client({ auth: notionToken });
-            const allTitles = [];
-            core.debug('querying database');
-            let res = yield notionCli.databases.query({
-                database_id: dbId,
-                filter: queryFilter(),
-                sorts: querySorts()
-            });
-            core.debug('querying database done');
-            core.info(JSON.stringify(res));
-            if (res.results) {
-                for (const result of res.results) {
-                    if (!(0, client_1.isFullPage)(result)) {
-                        core.warning(`unexpected object type ${result.id}`);
-                        continue;
-                    }
-                    const title = result.properties.Name;
-                    if (!title || title.type !== 'title') {
-                        core.warning(`no title for page ${result.id}: ${JSON.stringify(title)}}`);
-                        continue;
-                    }
-                    const titleText = title.title
-                        .filter(t => t.type === 'text')
-                        .map(t => t.plain_text)
-                        .join('');
-                    core.info(`found page ${titleText}`);
-                    allTitles.push(titleText);
-                }
-            }
-            core.info(`found ${allTitles.length} pages`);
-            while (res.has_more && res.next_cursor) {
-                core.warning('has more');
-                const cursor = res.next_cursor;
-                res = yield notionCli.databases.query({
+            const queryDatabase = (cursor) => __awaiter(this, void 0, void 0, function* () {
+                const res = yield notionCli.databases.query({
                     database_id: dbId,
-                    start_cursor: cursor
+                    start_cursor: cursor,
+                    filter: queryFilter(),
+                    sorts: querySorts()
                 });
-                if (res.results) {
-                    for (const result of res.results) {
-                        if (!(0, client_1.isFullPage)(result)) {
-                            core.warning(`unexpected object type ${result.id}`);
-                            continue;
-                        }
-                        const title = result.properties.Name;
-                        if (!title || title.type !== 'title') {
-                            core.warning(`no title for page ${result.id}: ${JSON.stringify(title)}`);
-                            continue;
-                        }
-                        const titleText = title.title
-                            .filter(t => t.type === 'text')
-                            .map(t => t.plain_text)
-                            .join('');
-                        core.info(`found page ${titleText}`);
-                        allTitles.push(titleText);
-                    }
+                core.info(`querying database ${dbId} done: ${JSON.stringify(res)}`);
+                return res;
+            });
+            const handlePages = (page) => {
+                const title = page.properties.Name;
+                if (!title || title.type !== 'title') {
+                    core.warning(`no title for page ${page.id}: ${JSON.stringify(title)}}`);
+                    return { res: '', ok: false };
                 }
-            }
+                const titleText = title.title
+                    .filter(t => t.type === 'text')
+                    .map(t => t.plain_text)
+                    .join('');
+                core.info(`found page ${titleText}`);
+                return { res: titleText, ok: true };
+            };
+            core.debug('querying database');
+            const allTitles = yield (0, notion_1.forEachPages)(queryDatabase, handlePages);
+            core.debug('querying database done');
+            core.info(`found ${allTitles.length} pages`);
             core.setOutput('db_id', dbId);
             core.setOutput('titles', allTitles.join(','));
         }
@@ -136,6 +108,83 @@ function run() {
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 8605:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.forEachPages = void 0;
+const client_1 = __nccwpck_require__(324);
+const core = __importStar(__nccwpck_require__(2186));
+function isFullPageOrWarning(result) {
+    if (!(0, client_1.isFullPage)(result)) {
+        core.warning(`unexpected object type ${result.id}: ${JSON.stringify(result)}`);
+        return false;
+    }
+    return true;
+}
+function forEachPages(queryDatabase, handlePages) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const handledReses = [];
+        const filterAndHandleResults = (queryRes) => {
+            if (queryRes.results) {
+                const pages = queryRes.results.filter(isFullPageOrWarning);
+                for (const page of pages) {
+                    const { res: handledRes, ok } = handlePages(page);
+                    if (ok) {
+                        handledReses.push(handledRes);
+                    }
+                }
+            }
+        };
+        let res = yield queryDatabase();
+        filterAndHandleResults(res);
+        while (res.has_more && res.next_cursor) {
+            const cursor = res.next_cursor;
+            res = yield queryDatabase(cursor);
+            filterAndHandleResults(res);
+        }
+        return handledReses;
+    });
+}
+exports.forEachPages = forEachPages;
 
 
 /***/ }),
