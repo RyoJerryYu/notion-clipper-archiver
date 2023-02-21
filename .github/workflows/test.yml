@@ -32,6 +32,7 @@ jobs:
           notion_token: ${{ secrets.INPUT_NOTION_TOKEN }}
           save_dir: ./results
           file_name: res.json
+          need_content: true
           contains_tags: |
             ipfs
             Tool

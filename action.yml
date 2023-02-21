@@ -20,6 +20,10 @@ inputs:
   not_contains_tags:
     required: false
     description: 'filter the notion web clipper data by tags'
+  need_content:
+    required: false
+    description: 'whether to include the content of the notion web clipper data'
+    default: 'false'
 outputs:
   save_path:
     description: 'saved json file path'

@@ -93,6 +93,8 @@ async function run(): Promise<void> {
     } else {
       core.info(`not_contains_tags: none`)
     }
+    const need_content = core.getBooleanInput('need_content', {required: false})
+
     const notionCli = new Client({auth: notionToken})
 
     const queryDatabase = async (cursor?: string) => {
@@ -115,6 +117,9 @@ async function run(): Promise<void> {
       const pageMeta = await getMetaFromPage(page)
       if (!pageMeta) {
         return
+      }
+      if (!need_content) {
+        return pageMeta
       }
       const content = await n2m.pageToMarkdown(page.id)
       const mdString = n2m.toMarkdownString(content)
