@@ -129,6 +129,7 @@ function run() {
             else {
                 core.info(`not_contains_tags: none`);
             }
+            const need_content = core.getBooleanInput('need_content', { required: false });
             const notionCli = new client_1.Client({ auth: notionToken });
             const queryDatabase = (cursor) => __awaiter(this, void 0, void 0, function* () {
                 const res = yield notionCli.databases.query({
@@ -147,6 +148,9 @@ function run() {
                 const pageMeta = yield (0, notion_1.getMetaFromPage)(page);
                 if (!pageMeta) {
                     return;
+                }
+                if (!need_content) {
+                    return pageMeta;
                 }
                 const content = yield n2m.pageToMarkdown(page.id);
                 const mdString = n2m.toMarkdownString(content);
