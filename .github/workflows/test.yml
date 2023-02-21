@@ -28,6 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./
+        id: notion_clipper_archiver
         with:
           database_id: ${{ secrets.INPUT_DATABASE_ID }}
           notion_token: ${{ secrets.INPUT_NOTION_TOKEN }}
@@ -43,5 +44,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: results
-          path: ./results/res.json
+          path: ${{ steps.notion_clipper_archiver.outputs.save_path }}
 
