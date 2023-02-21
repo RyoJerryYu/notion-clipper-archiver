@@ -20,6 +20,8 @@ jobs:
         env:
           INPUT_DATABASE_ID: ${{ secrets.INPUT_DATABASE_ID }}
           INPUT_NOTION_TOKEN: ${{ secrets.INPUT_NOTION_TOKEN }}
+          INPUT_SAVE_DIR: ./results
+          INPUT_FILE_NAME: res.json
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
