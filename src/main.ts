@@ -49,6 +49,9 @@ async function run(): Promise<void> {
 
     const getWantedFromPage = async (page: PageObjectResponse) => {
       const pageMeta = await getMetaFromPage(page)
+      if (!pageMeta) {
+        return
+      }
       const content = await n2m.pageToMarkdown(page.id)
       const mdString = n2m.toMarkdownString(content)
       return {...pageMeta, content: mdString}

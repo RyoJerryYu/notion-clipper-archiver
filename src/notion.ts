@@ -20,9 +20,7 @@ function isFullPageOrWarning(
 
 export async function forEachPages<Res>(
   queryDatabase: (cursor?: string) => Promise<QueryDatabaseResponse>,
-  handlePage: (
-    page: PageObjectResponse
-  ) => Promise<{res: Res; ok: true} | {ok: false}>
+  handlePage: (page: PageObjectResponse) => Promise<Res | undefined>
 ): Promise<Res[]> {
   const handledReses: Res[] = []
 
@@ -31,9 +29,9 @@ export async function forEachPages<Res>(
     if (queryRes.results) {
       const pages = queryRes.results.filter(isFullPageOrWarning)
       for (const page of pages) {
-        const handledRes = await handlePage(page)
-        if (handledRes.ok) {
-          handledReses.push(handledRes.res)
+        const res = await handlePage(page)
+        if (res) {
+          handledReses.push(res)
         }
       }
     }
@@ -49,7 +47,7 @@ export async function forEachPages<Res>(
   return handledReses
 }
 
-type PageMeta = {
+export type PageMeta = {
   id: string
   title: string
   url: string
@@ -59,13 +57,13 @@ type PageMeta = {
 
 export async function getMetaFromPage(
   page: PageObjectResponse
-): Promise<{res: PageMeta; ok: true} | {ok: false}> {
+): Promise<PageMeta | undefined> {
   const titleProperty = page.properties.Name
   if (!titleProperty || titleProperty.type !== 'title') {
     core.warning(
       `no title for page ${page.id}: ${JSON.stringify(titleProperty)}}`
     )
-    return {ok: false}
+    return
   }
   const title = titleProperty.title
     .filter(t => t.type === 'text')
@@ -76,7 +74,7 @@ export async function getMetaFromPage(
   const urlProperty = page.properties.URL
   if (!urlProperty || urlProperty.type !== 'url' || !urlProperty.url) {
     core.warning(`no url for page ${page.id}: ${JSON.stringify(urlProperty)}}`)
-    return {ok: false}
+    return
   }
   const url = urlProperty.url
 
@@ -97,5 +95,5 @@ export async function getMetaFromPage(
     wantedRes.created_time = createdTimeProperty.created_time
   }
 
-  return {res: wantedRes, ok: true}
+  return wantedRes
 }

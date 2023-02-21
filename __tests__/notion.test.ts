@@ -87,14 +87,14 @@ test('forEachPages', async () => {
   const handlePages = async (page: PageObjectResponse) => {
     const title = page.properties.Name
     if (!title || title.type !== 'title') {
-      return {res: '', ok: false}
+      return
     }
 
     const titleText = title.title
       .filter(t => t.type === 'text')
       .map(t => t.plain_text)
       .join('')
-    return {res: titleText, ok: true}
+    return titleText
   }
 
   const allTitles = await forEachPages(queryDatabase, handlePages)
@@ -169,12 +169,9 @@ const pageObjectResponseExample: PageObjectResponse = {
 
 test('getMetaFromPage', async () => {
   const meta = await getMetaFromPage(pageObjectResponseExample)
-  expect(meta.ok).toBe(true)
-  if (!meta.ok) {
-    return
-  }
+  expect(meta).not.toBe(undefined)
 
-  expect(meta.res).toEqual({
+  expect(meta).toEqual({
     id: '72f156b1-ceeb-4243-8765-8b9660542da4',
     title: 'Kubo | IPFS Docs',
     url: 'https://docs.ipfs.tech/install/command-line/#system-requirements',

@@ -83,6 +83,9 @@ function run() {
             });
             const getWantedFromPage = (page) => __awaiter(this, void 0, void 0, function* () {
                 const pageMeta = yield (0, notion_1.getMetaFromPage)(page);
+                if (!pageMeta) {
+                    return;
+                }
                 const content = yield n2m.pageToMarkdown(page.id);
                 const mdString = n2m.toMarkdownString(content);
                 return Object.assign(Object.assign({}, pageMeta), { content: mdString });
@@ -165,9 +168,9 @@ function forEachPages(queryDatabase, handlePage) {
             if (queryRes.results) {
                 const pages = queryRes.results.filter(isFullPageOrWarning);
                 for (const page of pages) {
-                    const handledRes = yield handlePage(page);
-                    if (handledRes.ok) {
-                        handledReses.push(handledRes.res);
+                    const res = yield handlePage(page);
+                    if (res) {
+                        handledReses.push(res);
                     }
                 }
             }
@@ -187,7 +190,7 @@ function getMetaFromPage(page) {
         const titleProperty = page.properties.Name;
         if (!titleProperty || titleProperty.type !== 'title') {
             core.warning(`no title for page ${page.id}: ${JSON.stringify(titleProperty)}}`);
-            return { ok: false };
+            return;
         }
         const title = titleProperty.title
             .filter(t => t.type === 'text')
@@ -197,7 +200,7 @@ function getMetaFromPage(page) {
         const urlProperty = page.properties.URL;
         if (!urlProperty || urlProperty.type !== 'url' || !urlProperty.url) {
             core.warning(`no url for page ${page.id}: ${JSON.stringify(urlProperty)}}`);
-            return { ok: false };
+            return;
         }
         const url = urlProperty.url;
         const wantedRes = {
@@ -214,7 +217,7 @@ function getMetaFromPage(page) {
         if (createdTimeProperty && createdTimeProperty.type === 'created_time') {
             wantedRes.created_time = createdTimeProperty.created_time;
         }
-        return { res: wantedRes, ok: true };
+        return wantedRes;
     });
 }
 exports.getMetaFromPage = getMetaFromPage;
