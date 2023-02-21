@@ -48,12 +48,41 @@ const client_1 = __nccwpck_require__(324);
 const notion_to_md_1 = __nccwpck_require__(4377);
 const notion_1 = __nccwpck_require__(8605);
 const writeFileAsync = util.promisify(fs.writeFile);
-function queryFilter() {
-    return {
+function queryFilter(contains_tags, not_contains_tags) {
+    if (contains_tags.length === 0 && not_contains_tags.length === 0) {
+        return undefined;
+    }
+    const contains_tags_filter = contains_tags.map(t => ({
         property: 'Tags',
         multi_select: {
-            contains: 'ipfs'
+            contains: t
         }
+    }));
+    const not_contains_tags_filter = not_contains_tags.map(t => ({
+        property: 'Tags',
+        multi_select: {
+            does_not_contain: t
+        }
+    }));
+    if (contains_tags.length === 0) {
+        return {
+            and: not_contains_tags_filter
+        };
+    }
+    if (not_contains_tags.length === 0) {
+        return {
+            or: contains_tags_filter
+        };
+    }
+    return {
+        and: [
+            {
+                or: contains_tags_filter
+            },
+            {
+                and: not_contains_tags_filter
+            }
+        ]
     };
 }
 function querySorts() {
@@ -76,12 +105,36 @@ function run() {
             core.info(`saving to ${save_dir}`);
             const file_name = core.getInput('file_name', { required: true });
             core.info(`saving to ${file_name}`);
+            const contains_tags = core
+                .getMultilineInput('contains_tags', {
+                required: false
+            })
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+            if (contains_tags) {
+                core.info(`contains_tags: ${contains_tags.map(t => `"${t}"`).join(',')}`);
+            }
+            else {
+                core.info(`contains_tags: none`);
+            }
+            const not_contains_tags = core
+                .getMultilineInput('not_contains_tags', {
+                required: false
+            })
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+            if (not_contains_tags) {
+                core.info(`not_contains_tags: ${not_contains_tags.map(t => `"${t}"`).join(',')}`);
+            }
+            else {
+                core.info(`not_contains_tags: none`);
+            }
             const notionCli = new client_1.Client({ auth: notionToken });
             const queryDatabase = (cursor) => __awaiter(this, void 0, void 0, function* () {
                 const res = yield notionCli.databases.query({
                     database_id: dbId,
                     start_cursor: cursor,
-                    filter: queryFilter(),
+                    filter: queryFilter(contains_tags, not_contains_tags),
                     sorts: querySorts()
                 });
                 core.info(`querying database ${dbId} done: ${JSON.stringify(res)}`);
