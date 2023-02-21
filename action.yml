@@ -1,6 +1,9 @@
 name: 'notion-clipper-archiver'
 description: 'Archive notion web clipper data to json file'
 author: 'RyoJerryYu'
+branding:
+  icon: bookmark
+  color: gray-dark
 inputs:
   database_id:
     required: true
