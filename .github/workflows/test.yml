@@ -32,6 +32,12 @@ jobs:
           notion_token: ${{ secrets.INPUT_NOTION_TOKEN }}
           save_dir: ./results
           file_name: res.json
+          contains_tags: |
+            ipfs
+            Tool
+          not_contains_tags: |
+            Wasm
+
       - uses: actions/upload-artifact@v3
         with:
           name: results

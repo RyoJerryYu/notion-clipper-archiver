@@ -1,6 +1,6 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'notion-clipper-archiver'
+description: 'Archive notion web clipper data to json file'
+author: 'RyoJerryYu'
 inputs:
   database_id:
     required: true
@@ -8,6 +8,21 @@ inputs:
   notion_token:
     required: true
     description: 'notion token to access notion api'
+  save_dir:
+    required: true
+    description: 'directory to save the json file'
+  file_name:
+    required: true
+    description: 'name of the json file'
+  contains_tags:
+    required: false
+    description: 'filter the notion web clipper data by tags'
+  not_contains_tags:
+    required: false
+    description: 'filter the notion web clipper data by tags'
+outputs:
+  save_path:
+    description: 'saved json file path'
 runs:
   using: 'node16'
   main: 'dist/index.js'

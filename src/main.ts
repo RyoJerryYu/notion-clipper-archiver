@@ -10,12 +10,42 @@ import {forEachPages, getMetaFromPage} from './notion'
 
 const writeFileAsync = util.promisify(fs.writeFile)
 
-function queryFilter() {
-  return {
+function queryFilter(contains_tags: string[], not_contains_tags: string[]) {
+  if (contains_tags.length === 0 && not_contains_tags.length === 0) {
+    return undefined
+  }
+  const contains_tags_filter = contains_tags.map(t => ({
     property: 'Tags',
     multi_select: {
-      contains: 'ipfs'
+      contains: t
     }
+  }))
+  const not_contains_tags_filter = not_contains_tags.map(t => ({
+    property: 'Tags',
+    multi_select: {
+      does_not_contain: t
+    }
+  }))
+  if (contains_tags.length === 0) {
+    return {
+      and: not_contains_tags_filter
+    }
+  }
+  if (not_contains_tags.length === 0) {
+    return {
+      or: contains_tags_filter
+    }
+  }
+
+  return {
+    and: [
+      {
+        or: contains_tags_filter
+      },
+      {
+        and: not_contains_tags_filter
+      }
+    ]
   }
 }
 
@@ -39,13 +69,37 @@ async function run(): Promise<void> {
     core.info(`saving to ${save_dir}`)
     const file_name = core.getInput('file_name', {required: true})
     core.info(`saving to ${file_name}`)
+    const contains_tags = core
+      .getMultilineInput('contains_tags', {
+        required: false
+      })
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+    if (contains_tags) {
+      core.info(`contains_tags: ${contains_tags.map(t => `"${t}"`).join(',')}`)
+    } else {
+      core.info(`contains_tags: none`)
+    }
+    const not_contains_tags = core
+      .getMultilineInput('not_contains_tags', {
+        required: false
+      })
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+    if (not_contains_tags) {
+      core.info(
+        `not_contains_tags: ${not_contains_tags.map(t => `"${t}"`).join(',')}`
+      )
+    } else {
+      core.info(`not_contains_tags: none`)
+    }
     const notionCli = new Client({auth: notionToken})
 
     const queryDatabase = async (cursor?: string) => {
       const res = await notionCli.databases.query({
         database_id: dbId,
         start_cursor: cursor,
-        filter: queryFilter(),
+        filter: queryFilter(contains_tags, not_contains_tags),
         sorts: querySorts()
       })
 
