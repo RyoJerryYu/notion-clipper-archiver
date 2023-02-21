@@ -22,6 +22,7 @@ jobs:
           INPUT_NOTION_TOKEN: ${{ secrets.INPUT_NOTION_TOKEN }}
           INPUT_SAVE_DIR: ./results
           INPUT_FILE_NAME: res.json
+          INPUT_NEED_CONTENT: false
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
     steps:
