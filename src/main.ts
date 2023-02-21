@@ -1,8 +1,14 @@
 import * as core from '@actions/core'
+import * as io from '@actions/io'
+import * as path from 'path'
+import * as fs from 'fs'
+import * as util from 'util'
 import {Client} from '@notionhq/client'
 import {PageObjectResponse} from '@notionhq/client/build/src/api-endpoints'
 import {NotionToMarkdown} from 'notion-to-md'
 import {forEachPages, getMetaFromPage} from './notion'
+
+const writeFileAsync = util.promisify(fs.writeFile)
 
 function queryFilter() {
   return {
@@ -24,11 +30,15 @@ function querySorts(): {property: string; direction: 'descending'}[] {
 
 async function run(): Promise<void> {
   try {
-    const dbId: string = core.getInput('database_id')
+    const dbId: string = core.getInput('database_id', {required: true})
     core.info(`querying database ${dbId}`)
-    const notionToken: string = core.getInput('notion_token')
+    const notionToken: string = core.getInput('notion_token', {required: true})
     core.setSecret(notionToken)
     core.info(`using token ${notionToken}`)
+    const save_dir = core.getInput('save_dir', {required: true})
+    core.info(`saving to ${save_dir}`)
+    const file_name = core.getInput('file_name', {required: true})
+    core.info(`saving to ${file_name}`)
     const notionCli = new Client({auth: notionToken})
 
     const queryDatabase = async (cursor?: string) => {
@@ -63,8 +73,14 @@ async function run(): Promise<void> {
 
     core.info(`found ${allReses.length} pages`)
 
+    await io.mkdirP(save_dir)
+    const save_path = path.join(save_dir, file_name)
+    core.info(`saving to ${save_path}`)
+
+    await writeFileAsync(save_path, JSON.stringify(allReses, null, 2))
+
     core.setOutput('db_id', dbId)
-    core.info(`allreses: ${JSON.stringify(allReses)}`)
+    core.setOutput('save_path', save_path)
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)

@@ -28,4 +28,10 @@ jobs:
         with:
           database_id: ${{ secrets.INPUT_DATABASE_ID }}
           notion_token: ${{ secrets.INPUT_NOTION_TOKEN }}
+          save_dir: ./results
+          file_name: res.json
+      - uses: actions/upload-artifact@v3
+        with:
+          name: results
+          path: ./results/res.json
 
