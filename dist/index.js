@@ -78,22 +78,21 @@ function run() {
                 core.info(`querying database ${dbId} done: ${JSON.stringify(res)}`);
                 return res;
             });
+            const n2m = new notion_to_md_1.NotionToMarkdown({
+                notionClient: notionCli
+            });
+            const getWantedFromPage = (page) => __awaiter(this, void 0, void 0, function* () {
+                const pageMeta = yield (0, notion_1.getMetaFromPage)(page);
+                const content = yield n2m.pageToMarkdown(page.id);
+                const mdString = n2m.toMarkdownString(content);
+                return Object.assign(Object.assign({}, pageMeta), { content: mdString });
+            });
             core.debug('querying database');
-            const allReses = yield (0, notion_1.forEachPages)(queryDatabase, notion_1.getResultFromPage);
+            const allReses = yield (0, notion_1.forEachPages)(queryDatabase, getWantedFromPage);
             core.debug('querying database done');
             core.info(`found ${allReses.length} pages`);
             core.setOutput('db_id', dbId);
             core.info(`allreses: ${JSON.stringify(allReses)}`);
-            core.info(`start test get content`);
-            const pageId = allReses[0].id;
-            core.info(`pageId: ${pageId}`);
-            const n2m = new notion_to_md_1.NotionToMarkdown({
-                notionClient: notionCli
-            });
-            const mdBlocks = yield n2m.pageToMarkdown(pageId);
-            core.info(`mdBlocks: ${JSON.stringify(mdBlocks)}`);
-            const mdString = n2m.toMarkdownString(mdBlocks);
-            core.info(`mdString: ${mdString}`);
         }
         catch (error) {
             if (error instanceof Error) {
@@ -148,7 +147,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getResultFromPage = exports.forEachPages = void 0;
+exports.getMetaFromPage = exports.forEachPages = void 0;
 const core = __importStar(__nccwpck_require__(2186));
 const client_1 = __nccwpck_require__(324);
 function isFullPageOrWarning(result) {
@@ -183,7 +182,7 @@ function forEachPages(queryDatabase, handlePage) {
     });
 }
 exports.forEachPages = forEachPages;
-function getResultFromPage(page) {
+function getMetaFromPage(page) {
     return __awaiter(this, void 0, void 0, function* () {
         const titleProperty = page.properties.Name;
         if (!titleProperty || titleProperty.type !== 'title') {
@@ -218,19 +217,7 @@ function getResultFromPage(page) {
         return { res: wantedRes, ok: true };
     });
 }
-exports.getResultFromPage = getResultFromPage;
-// export async function parseContentFromPage(
-//   pageId: string,
-//   // eslint-disable-next-line no-shadow
-//   listBlockChildren: (pageId: string) => Promise<ListBlockChildrenResponse>
-// ): Promise<string> {
-//   const retrieveBlockChildrenResponse = await listBlockChildren(pageId)
-//   const n2m = new NotionToMarkdown({
-//     notionClient: undefined
-//   })
-//   const blockChildren = retrieveBlockChildrenResponse.results
-//   return content
-// }
+exports.getMetaFromPage = getMetaFromPage;
 
 
 /***/ }),

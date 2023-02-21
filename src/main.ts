@@ -1,7 +1,8 @@
 import * as core from '@actions/core'
 import {Client} from '@notionhq/client'
+import {PageObjectResponse} from '@notionhq/client/build/src/api-endpoints'
 import {NotionToMarkdown} from 'notion-to-md'
-import {forEachPages, getResultFromPage} from './notion'
+import {forEachPages, getMetaFromPage} from './notion'
 
 function queryFilter() {
   return {
@@ -42,27 +43,25 @@ async function run(): Promise<void> {
       return res
     }
 
+    const n2m = new NotionToMarkdown({
+      notionClient: notionCli
+    })
+
+    const getWantedFromPage = async (page: PageObjectResponse) => {
+      const pageMeta = await getMetaFromPage(page)
+      const content = await n2m.pageToMarkdown(page.id)
+      const mdString = n2m.toMarkdownString(content)
+      return {...pageMeta, content: mdString}
+    }
+
     core.debug('querying database')
-    const allReses = await forEachPages(queryDatabase, getResultFromPage)
+    const allReses = await forEachPages(queryDatabase, getWantedFromPage)
     core.debug('querying database done')
 
     core.info(`found ${allReses.length} pages`)
 
     core.setOutput('db_id', dbId)
     core.info(`allreses: ${JSON.stringify(allReses)}`)
-
-    core.info(`start test get content`)
-    const pageId = allReses[0].id
-    core.info(`pageId: ${pageId}`)
-
-    const n2m = new NotionToMarkdown({
-      notionClient: notionCli
-    })
-
-    const mdBlocks = await n2m.pageToMarkdown(pageId)
-    core.info(`mdBlocks: ${JSON.stringify(mdBlocks)}`)
-    const mdString = n2m.toMarkdownString(mdBlocks)
-    core.info(`mdString: ${mdString}`)
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)

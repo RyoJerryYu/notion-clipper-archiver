@@ -49,7 +49,7 @@ export async function forEachPages<Res>(
   return handledReses
 }
 
-type WantedPage = {
+type PageMeta = {
   id: string
   title: string
   url: string
@@ -57,9 +57,9 @@ type WantedPage = {
   created_time?: string
 }
 
-export async function getResultFromPage(
+export async function getMetaFromPage(
   page: PageObjectResponse
-): Promise<{res: WantedPage; ok: true} | {ok: false}> {
+): Promise<{res: PageMeta; ok: true} | {ok: false}> {
   const titleProperty = page.properties.Name
   if (!titleProperty || titleProperty.type !== 'title') {
     core.warning(
@@ -80,7 +80,7 @@ export async function getResultFromPage(
   }
   const url = urlProperty.url
 
-  const wantedRes: WantedPage = {
+  const wantedRes: PageMeta = {
     id: page.id,
     title,
     url
@@ -99,16 +99,3 @@ export async function getResultFromPage(
 
   return {res: wantedRes, ok: true}
 }
-
-// export async function parseContentFromPage(
-//   pageId: string,
-//   // eslint-disable-next-line no-shadow
-//   listBlockChildren: (pageId: string) => Promise<ListBlockChildrenResponse>
-// ): Promise<string> {
-//   const retrieveBlockChildrenResponse = await listBlockChildren(pageId)
-//   const n2m = new NotionToMarkdown({
-//     notionClient: undefined
-//   })
-//   const blockChildren = retrieveBlockChildrenResponse.results
-//   return content
-// }
