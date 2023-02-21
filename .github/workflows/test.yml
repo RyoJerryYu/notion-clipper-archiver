@@ -9,6 +9,7 @@ on: # rebuild any PRs and main branch changes
 jobs:
   build: # make sure build/ci work properly
     runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -25,6 +26,7 @@ jobs:
           INPUT_NEED_CONTENT: false
   test: # make sure the action works on a clean machine without building
     runs-on: ubuntu-latest
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v3
       - uses: ./
