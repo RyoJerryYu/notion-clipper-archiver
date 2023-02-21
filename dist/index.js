@@ -41,6 +41,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const client_1 = __nccwpck_require__(324);
+const notion_to_md_1 = __nccwpck_require__(4377);
 const notion_1 = __nccwpck_require__(8605);
 function queryFilter() {
     return {
@@ -78,7 +79,7 @@ function run() {
                 return res;
             });
             core.debug('querying database');
-            const allReses = yield (0, notion_1.forEachPages)(queryDatabase, notion_1.getResultFromPageResponse);
+            const allReses = yield (0, notion_1.forEachPages)(queryDatabase, notion_1.getResultFromPage);
             core.debug('querying database done');
             core.info(`found ${allReses.length} pages`);
             core.setOutput('db_id', dbId);
@@ -86,10 +87,13 @@ function run() {
             core.info(`start test get content`);
             const pageId = allReses[0].id;
             core.info(`pageId: ${pageId}`);
-            const retrieveBlockResponse = yield notionCli.blocks.children.list({
-                block_id: pageId
+            const n2m = new notion_to_md_1.NotionToMarkdown({
+                notionClient: notionCli
             });
-            core.info(`retrieveBlockResponse: ${JSON.stringify(retrieveBlockResponse)}`);
+            const mdBlocks = yield n2m.pageToMarkdown(pageId);
+            core.info(`mdBlocks: ${JSON.stringify(mdBlocks)}`);
+            const mdString = n2m.toMarkdownString(mdBlocks);
+            core.info(`mdString: ${mdString}`);
         }
         catch (error) {
             if (error instanceof Error) {
@@ -144,9 +148,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.getResultFromPageResponse = exports.forEachPages = void 0;
-const client_1 = __nccwpck_require__(324);
+exports.getResultFromPage = exports.forEachPages = void 0;
 const core = __importStar(__nccwpck_require__(2186));
+const client_1 = __nccwpck_require__(324);
 function isFullPageOrWarning(result) {
     if (!(0, client_1.isFullPage)(result)) {
         core.warning(`unexpected object type ${result.id}: ${JSON.stringify(result)}`);
@@ -154,32 +158,32 @@ function isFullPageOrWarning(result) {
     }
     return true;
 }
-function forEachPages(queryDatabase, handlePages) {
+function forEachPages(queryDatabase, handlePage) {
     return __awaiter(this, void 0, void 0, function* () {
         const handledReses = [];
-        const filterAndHandleResults = (queryRes) => __awaiter(this, void 0, void 0, function* () {
+        const queryAndHandleResults = (cursor) => __awaiter(this, void 0, void 0, function* () {
+            const queryRes = yield queryDatabase(cursor);
             if (queryRes.results) {
                 const pages = queryRes.results.filter(isFullPageOrWarning);
                 for (const page of pages) {
-                    const handledRes = yield handlePages(page);
+                    const handledRes = yield handlePage(page);
                     if (handledRes.ok) {
                         handledReses.push(handledRes.res);
                     }
                 }
             }
+            return queryRes;
         });
-        let res = yield queryDatabase();
-        yield filterAndHandleResults(res);
+        let res = yield queryAndHandleResults();
         while (res.has_more && res.next_cursor) {
             const cursor = res.next_cursor;
-            res = yield queryDatabase(cursor);
-            yield filterAndHandleResults(res);
+            res = yield queryAndHandleResults(cursor);
         }
         return handledReses;
     });
 }
 exports.forEachPages = forEachPages;
-function getResultFromPageResponse(page) {
+function getResultFromPage(page) {
     return __awaiter(this, void 0, void 0, function* () {
         const titleProperty = page.properties.Name;
         if (!titleProperty || titleProperty.type !== 'title') {
@@ -214,7 +218,19 @@ function getResultFromPageResponse(page) {
         return { res: wantedRes, ok: true };
     });
 }
-exports.getResultFromPageResponse = getResultFromPageResponse;
+exports.getResultFromPage = getResultFromPage;
+// export async function parseContentFromPage(
+//   pageId: string,
+//   // eslint-disable-next-line no-shadow
+//   listBlockChildren: (pageId: string) => Promise<ListBlockChildrenResponse>
+// ): Promise<string> {
+//   const retrieveBlockChildrenResponse = await listBlockChildren(pageId)
+//   const n2m = new NotionToMarkdown({
+//     notionClient: undefined
+//   })
+//   const blockChildren = retrieveBlockChildrenResponse.results
+//   return content
+// }
 
 
 /***/ }),
@@ -3004,6 +3020,263 @@ function isObject(o) {
 }
 exports.isObject = isObject;
 //# sourceMappingURL=utils.js.map
+
+/***/ }),
+
+/***/ 1062:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var repeat = __nccwpck_require__(6976)
+
+module.exports = markdownTable
+
+var trailingWhitespace = / +$/
+
+// Characters.
+var space = ' '
+var lineFeed = '\n'
+var dash = '-'
+var colon = ':'
+var verticalBar = '|'
+
+var x = 0
+var C = 67
+var L = 76
+var R = 82
+var c = 99
+var l = 108
+var r = 114
+
+// Create a table from a matrix of strings.
+function markdownTable(table, options) {
+  var settings = options || {}
+  var padding = settings.padding !== false
+  var start = settings.delimiterStart !== false
+  var end = settings.delimiterEnd !== false
+  var align = (settings.align || []).concat()
+  var alignDelimiters = settings.alignDelimiters !== false
+  var alignments = []
+  var stringLength = settings.stringLength || defaultStringLength
+  var rowIndex = -1
+  var rowLength = table.length
+  var cellMatrix = []
+  var sizeMatrix = []
+  var row = []
+  var sizes = []
+  var longestCellByColumn = []
+  var mostCellsPerRow = 0
+  var cells
+  var columnIndex
+  var columnLength
+  var largest
+  var size
+  var cell
+  var lines
+  var line
+  var before
+  var after
+  var code
+
+  // This is a superfluous loop if we don’t align delimiters, but otherwise we’d
+  // do superfluous work when aligning, so optimize for aligning.
+  while (++rowIndex < rowLength) {
+    cells = table[rowIndex]
+    columnIndex = -1
+    columnLength = cells.length
+    row = []
+    sizes = []
+
+    if (columnLength > mostCellsPerRow) {
+      mostCellsPerRow = columnLength
+    }
+
+    while (++columnIndex < columnLength) {
+      cell = serialize(cells[columnIndex])
+
+      if (alignDelimiters === true) {
+        size = stringLength(cell)
+        sizes[columnIndex] = size
+
+        largest = longestCellByColumn[columnIndex]
+
+        if (largest === undefined || size > largest) {
+          longestCellByColumn[columnIndex] = size
+        }
+      }
+
+      row.push(cell)
+    }
+
+    cellMatrix[rowIndex] = row
+    sizeMatrix[rowIndex] = sizes
+  }
+
+  // Figure out which alignments to use.
+  columnIndex = -1
+  columnLength = mostCellsPerRow
+
+  if (typeof align === 'object' && 'length' in align) {
+    while (++columnIndex < columnLength) {
+      alignments[columnIndex] = toAlignment(align[columnIndex])
+    }
+  } else {
+    code = toAlignment(align)
+
+    while (++columnIndex < columnLength) {
+      alignments[columnIndex] = code
+    }
+  }
+
+  // Inject the alignment row.
+  columnIndex = -1
+  columnLength = mostCellsPerRow
+  row = []
+  sizes = []
+
+  while (++columnIndex < columnLength) {
+    code = alignments[columnIndex]
+    before = ''
+    after = ''
+
+    if (code === l) {
+      before = colon
+    } else if (code === r) {
+      after = colon
+    } else if (code === c) {
+      before = colon
+      after = colon
+    }
+
+    // There *must* be at least one hyphen-minus in each alignment cell.
+    size = alignDelimiters
+      ? Math.max(
+          1,
+          longestCellByColumn[columnIndex] - before.length - after.length
+        )
+      : 1
+
+    cell = before + repeat(dash, size) + after
+
+    if (alignDelimiters === true) {
+      size = before.length + size + after.length
+
+      if (size > longestCellByColumn[columnIndex]) {
+        longestCellByColumn[columnIndex] = size
+      }
+
+      sizes[columnIndex] = size
+    }
+
+    row[columnIndex] = cell
+  }
+
+  // Inject the alignment row.
+  cellMatrix.splice(1, 0, row)
+  sizeMatrix.splice(1, 0, sizes)
+
+  rowIndex = -1
+  rowLength = cellMatrix.length
+  lines = []
+
+  while (++rowIndex < rowLength) {
+    row = cellMatrix[rowIndex]
+    sizes = sizeMatrix[rowIndex]
+    columnIndex = -1
+    columnLength = mostCellsPerRow
+    line = []
+
+    while (++columnIndex < columnLength) {
+      cell = row[columnIndex] || ''
+      before = ''
+      after = ''
+
+      if (alignDelimiters === true) {
+        size = longestCellByColumn[columnIndex] - (sizes[columnIndex] || 0)
+        code = alignments[columnIndex]
+
+        if (code === r) {
+          before = repeat(space, size)
+        } else if (code === c) {
+          if (size % 2 === 0) {
+            before = repeat(space, size / 2)
+            after = before
+          } else {
+            before = repeat(space, size / 2 + 0.5)
+            after = repeat(space, size / 2 - 0.5)
+          }
+        } else {
+          after = repeat(space, size)
+        }
+      }
+
+      if (start === true && columnIndex === 0) {
+        line.push(verticalBar)
+      }
+
+      if (
+        padding === true &&
+        // Don’t add the opening space if we’re not aligning and the cell is
+        // empty: there will be a closing space.
+        !(alignDelimiters === false && cell === '') &&
+        (start === true || columnIndex !== 0)
+      ) {
+        line.push(space)
+      }
+
+      if (alignDelimiters === true) {
+        line.push(before)
+      }
+
+      line.push(cell)
+
+      if (alignDelimiters === true) {
+        line.push(after)
+      }
+
+      if (padding === true) {
+        line.push(space)
+      }
+
+      if (end === true || columnIndex !== columnLength - 1) {
+        line.push(verticalBar)
+      }
+    }
+
+    line = line.join('')
+
+    if (end === false) {
+      line = line.replace(trailingWhitespace, '')
+    }
+
+    lines.push(line)
+  }
+
+  return lines.join(lineFeed)
+}
+
+function serialize(value) {
+  return value === null || value === undefined ? '' : String(value)
+}
+
+function defaultStringLength(value) {
+  return value.length
+}
+
+function toAlignment(value) {
+  var code = typeof value === 'string' ? value.charCodeAt(0) : x
+
+  return code === L || code === l
+    ? l
+    : code === R || code === r
+    ? r
+    : code === C || code === c
+    ? c
+    : x
+}
+
 
 /***/ }),
 
@@ -6960,6 +7233,679 @@ module.exports.implForWrapper = function (wrapper) {
   return wrapper[module.exports.implSymbol];
 };
 
+
+
+/***/ }),
+
+/***/ 4377:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+__exportStar(__nccwpck_require__(7772), exports);
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 7772:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotionToMarkdown = void 0;
+const md = __importStar(__nccwpck_require__(3951));
+const notion_1 = __nccwpck_require__(4250);
+/**
+ * Converts a Notion page to Markdown.
+ */
+class NotionToMarkdown {
+    constructor(options) {
+        this.notionClient = options.notionClient;
+        this.customTransformers = {};
+    }
+    setCustomTransformer(type, transformer) {
+        this.customTransformers[type] = transformer;
+        return this;
+    }
+    /**
+     * Converts Markdown Blocks to string
+     * @param {MdBlock[]} mdBlocks - Array of markdown blocks
+     * @param {number} nestingLevel - Defines max depth of nesting
+     * @returns {string} - Returns markdown string
+     */
+    toMarkdownString(mdBlocks = [], nestingLevel = 0) {
+        let mdString = "";
+        mdBlocks.forEach((mdBlocks) => {
+            // process parent blocks
+            if (mdBlocks.parent) {
+                if (mdBlocks.type !== "to_do" &&
+                    mdBlocks.type !== "bulleted_list_item" &&
+                    mdBlocks.type !== "numbered_list_item") {
+                    // add extra line breaks non list blocks
+                    mdString += `\n${md.addTabSpace(mdBlocks.parent, nestingLevel)}\n\n`;
+                }
+                else {
+                    mdString += `${md.addTabSpace(mdBlocks.parent, nestingLevel)}\n`;
+                }
+            }
+            // process child blocks
+            if (mdBlocks.children && mdBlocks.children.length > 0) {
+                if (mdBlocks.type === "synced_block") {
+                    mdString += this.toMarkdownString(mdBlocks.children, nestingLevel);
+                }
+                else {
+                    mdString += this.toMarkdownString(mdBlocks.children, nestingLevel + 1);
+                }
+            }
+        });
+        return mdString;
+    }
+    /**
+     * Retrieves Notion Blocks based on ID and converts them to Markdown Blocks
+     * @param {string} id - notion page id (not database id)
+     * @param {number} totalPage - Retrieve block children request number, page_size Maximum = totalPage * 100 (Default=null)
+     * @returns {Promise<MdBlock[]>} - List of markdown blocks
+     */
+    async pageToMarkdown(id, totalPage = null) {
+        if (!this.notionClient) {
+            throw new Error("notion client is not provided, for more details check out https://github.com/souvikinator/notion-to-md");
+        }
+        const blocks = await (0, notion_1.getBlockChildren)(this.notionClient, id, totalPage);
+        const parsedData = await this.blocksToMarkdown(blocks);
+        return parsedData;
+    }
+    /**
+     * Converts list of Notion Blocks to Markdown Blocks
+     * @param {ListBlockChildrenResponseResults | undefined} blocks - List of notion blocks
+     * @param {number} totalPage - Retrieve block children request number, page_size Maximum = totalPage * 100
+     * @param {MdBlock[]} mdBlocks - Defines max depth of nesting
+     * @returns {Promise<MdBlock[]>} - Array of markdown blocks with their children
+     */
+    async blocksToMarkdown(blocks, totalPage = null, mdBlocks = []) {
+        if (!this.notionClient) {
+            throw new Error("notion client is not provided, for more details check out https://github.com/souvikinator/notion-to-md");
+        }
+        if (!blocks)
+            return mdBlocks;
+        for (let i = 0; i < blocks.length; i++) {
+            let block = blocks[i];
+            if ("has_children" in block &&
+                block.has_children &&
+                block.type !== "column_list" &&
+                block.type !== "toggle" &&
+                block.type !== "callout") {
+                let child_blocks = await (0, notion_1.getBlockChildren)(this.notionClient, block.id, totalPage);
+                mdBlocks.push({
+                    type: block.type,
+                    parent: await this.blockToMarkdown(block),
+                    children: [],
+                });
+                let l = mdBlocks.length;
+                await this.blocksToMarkdown(child_blocks, totalPage, mdBlocks[l - 1].children);
+                continue;
+            }
+            let tmp = await this.blockToMarkdown(block);
+            // console.log(block);
+            // @ts-ignore
+            mdBlocks.push({ type: block.type, parent: tmp, children: [] });
+        }
+        return mdBlocks;
+    }
+    /**
+     * Converts a Notion Block to a Markdown Block
+     * @param {ListBlockChildrenResponseResult} block - single notion block
+     * @returns {string} corresponding markdown string of the passed block
+     */
+    async blockToMarkdown(block) {
+        var _a;
+        if (typeof block !== "object" || !("type" in block))
+            return "";
+        let parsedData = "";
+        const { type } = block;
+        if (type in this.customTransformers && !!this.customTransformers[type])
+            return await this.customTransformers[type](block);
+        switch (type) {
+            case "image":
+                {
+                    let blockContent = block.image;
+                    const image_caption_plain = blockContent.caption
+                        .map((item) => item.plain_text)
+                        .join("");
+                    const image_type = blockContent.type;
+                    if (image_type === "external")
+                        return md.image(image_caption_plain, blockContent.external.url);
+                    if (image_type === "file")
+                        return md.image(image_caption_plain, blockContent.file.url);
+                }
+                break;
+            case "divider": {
+                return md.divider();
+            }
+            case "equation": {
+                return md.codeBlock(block.equation.expression);
+            }
+            case "video":
+            case "file":
+            case "pdf":
+                {
+                    let blockContent;
+                    if (type === "video")
+                        blockContent = block.video;
+                    if (type === "file")
+                        blockContent = block.file;
+                    if (type === "pdf")
+                        blockContent = block.pdf;
+                    if (blockContent) {
+                        const file_type = blockContent.type;
+                        if (file_type === "external")
+                            return md.link("image", blockContent.external.url);
+                        if (file_type === "file")
+                            return md.link("image", blockContent.file.url);
+                    }
+                }
+                break;
+            case "bookmark":
+            case "embed":
+            case "link_preview":
+            case "link_to_page":
+            case "child_page":
+            case "child_database":
+                {
+                    let blockContent;
+                    let title = type;
+                    if (type === "bookmark")
+                        blockContent = block.bookmark;
+                    if (type === "embed")
+                        blockContent = block.embed;
+                    if (type === "link_preview")
+                        blockContent = block.link_preview;
+                    if (type === "link_to_page" &&
+                        block.link_to_page.type === "page_id") {
+                        blockContent = { url: block.link_to_page.page_id };
+                    }
+                    if (type === "child_page") {
+                        blockContent = { url: block.id };
+                        title = block.child_page.title;
+                    }
+                    if (type === "child_database") {
+                        blockContent = { url: block.id };
+                        title = block.child_database.title || "child_database";
+                    }
+                    if (blockContent)
+                        return md.link(title, blockContent.url);
+                }
+                break;
+            case "table": {
+                const { id, has_children } = block;
+                let tableArr = [];
+                if (has_children) {
+                    const tableRows = await (0, notion_1.getBlockChildren)(this.notionClient, id, 100);
+                    // console.log(">>", tableRows);
+                    let rowsPromise = tableRows === null || tableRows === void 0 ? void 0 : tableRows.map(async (row) => {
+                        const { type } = row;
+                        const cells = row[type]["cells"];
+                        /**
+                         * this is more like a hack since matching the type text was
+                         * difficult. So converting each cell to paragraph type to
+                         * reuse the blockToMarkdown function
+                         */
+                        let cellStringPromise = cells.map(async (cell) => await this.blockToMarkdown({
+                            type: "paragraph",
+                            paragraph: { rich_text: cell },
+                        }));
+                        const cellStringArr = await Promise.all(cellStringPromise);
+                        // console.log("~~", cellStringArr);
+                        tableArr.push(cellStringArr);
+                        // console.log(tableArr);
+                    });
+                    await Promise.all(rowsPromise || []);
+                }
+                return md.table(tableArr);
+            }
+            case "column_list": {
+                const { id, has_children } = block;
+                if (!has_children)
+                    return "";
+                const column_list_children = await (0, notion_1.getBlockChildren)(this.notionClient, id, 100);
+                let column_list_promise = column_list_children.map(async (column) => await this.blockToMarkdown(column));
+                let column_list = await Promise.all(column_list_promise);
+                return column_list.join("\n\n");
+            }
+            case "column": {
+                const { id, has_children } = block;
+                if (!has_children)
+                    return "";
+                const column_children = await (0, notion_1.getBlockChildren)(this.notionClient, id, 100);
+                const column_children_promise = column_children.map(async (column_child) => await this.blockToMarkdown(column_child));
+                let column = await Promise.all(column_children_promise);
+                return column.join("\n\n");
+            }
+            case "toggle": {
+                const { id, has_children } = block;
+                const toggle_summary = (_a = block.toggle.rich_text[0]) === null || _a === void 0 ? void 0 : _a.plain_text;
+                // empty toggle
+                if (!has_children) {
+                    return md.toggle(toggle_summary);
+                }
+                const toggle_children_object = await (0, notion_1.getBlockChildren)(this.notionClient, id, 100);
+                // parse children blocks to md object
+                const toggle_children = await this.blocksToMarkdown(toggle_children_object);
+                // convert children md object to md string
+                const toggle_children_md_string = this.toMarkdownString(toggle_children);
+                return md.toggle(toggle_summary, toggle_children_md_string);
+            }
+            // Rest of the types
+            // "paragraph"
+            // "heading_1"
+            // "heading_2"
+            // "heading_3"
+            // "bulleted_list_item"
+            // "numbered_list_item"
+            // "quote"
+            // "to_do"
+            // "template"
+            // "synced_block"
+            // "child_page"
+            // "child_database"
+            // "code"
+            // "callout"
+            // "breadcrumb"
+            // "table_of_contents"
+            // "column_list"
+            // "column"
+            // "link_to_page"
+            // "audio"
+            // "unsupported"
+            default: {
+                // In this case typescript is not able to index the types properly, hence ignoring the error
+                // @ts-ignore
+                let blockContent = block[type].text || block[type].rich_text || [];
+                blockContent.map((content) => {
+                    const annotations = content.annotations;
+                    let plain_text = content.plain_text;
+                    plain_text = this.annotatePlainText(plain_text, annotations);
+                    if (content["href"])
+                        plain_text = md.link(plain_text, content["href"]);
+                    parsedData += plain_text;
+                });
+            }
+        }
+        switch (type) {
+            case "code":
+                {
+                    parsedData = md.codeBlock(parsedData, block[type].language);
+                }
+                break;
+            case "heading_1":
+                {
+                    parsedData = md.heading1(parsedData);
+                }
+                break;
+            case "heading_2":
+                {
+                    parsedData = md.heading2(parsedData);
+                }
+                break;
+            case "heading_3":
+                {
+                    parsedData = md.heading3(parsedData);
+                }
+                break;
+            case "quote":
+                {
+                    parsedData = md.quote(parsedData);
+                }
+                break;
+            case "callout":
+                {
+                    const { id, has_children } = block;
+                    let callout_string = "";
+                    if (!has_children) {
+                        return md.callout(parsedData, block[type].icon);
+                    }
+                    const callout_children_object = await (0, notion_1.getBlockChildren)(this.notionClient, id, 100);
+                    // // parse children blocks to md object
+                    const callout_children = await this.blocksToMarkdown(callout_children_object);
+                    callout_string += `${parsedData}\n`;
+                    callout_children.map((child) => {
+                        callout_string += `${child.parent}\n\n`;
+                    });
+                    parsedData = md.callout(callout_string.trim(), block[type].icon);
+                }
+                break;
+            case "bulleted_list_item":
+                {
+                    parsedData = md.bullet(parsedData);
+                }
+                break;
+            case "numbered_list_item":
+                {
+                    parsedData = md.bullet(parsedData, block.numbered_list_item.number);
+                }
+                break;
+            case "to_do":
+                {
+                    parsedData = md.todo(parsedData, block.to_do.checked);
+                }
+                break;
+        }
+        return parsedData;
+    }
+    /**
+     * Annoate text using provided annotations
+     * @param {string} text - String to be annotated
+     * @param {Annotations} annotations - Annotation object of a notion block
+     * @returns {string} - Annotated text
+     */
+    annotatePlainText(text, annotations) {
+        // if text is all spaces, don't annotate
+        if (text.match(/^\s*$/))
+            return text;
+        const leadingSpaceMatch = text.match(/^(\s*)/);
+        const trailingSpaceMatch = text.match(/(\s*)$/);
+        const leading_space = leadingSpaceMatch ? leadingSpaceMatch[0] : "";
+        const trailing_space = trailingSpaceMatch ? trailingSpaceMatch[0] : "";
+        text = text.trim();
+        if (text !== "") {
+            if (annotations.code)
+                text = md.inlineCode(text);
+            if (annotations.bold)
+                text = md.bold(text);
+            if (annotations.italic)
+                text = md.italic(text);
+            if (annotations.strikethrough)
+                text = md.strikethrough(text);
+            if (annotations.underline)
+                text = md.underline(text);
+        }
+        return leading_space + text + trailing_space;
+    }
+}
+exports.NotionToMarkdown = NotionToMarkdown;
+//# sourceMappingURL=notion-to-md.js.map
+
+/***/ }),
+
+/***/ 3951:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.table = exports.toggle = exports.divider = exports.addTabSpace = exports.image = exports.todo = exports.bullet = exports.callout = exports.quote = exports.heading3 = exports.heading2 = exports.heading1 = exports.codeBlock = exports.link = exports.underline = exports.strikethrough = exports.italic = exports.bold = exports.inlineCode = void 0;
+const markdown_table_1 = __importDefault(__nccwpck_require__(1062));
+const inlineCode = (text) => {
+    return `\`${text}\``;
+};
+exports.inlineCode = inlineCode;
+const bold = (text) => {
+    return `**${text}**`;
+};
+exports.bold = bold;
+const italic = (text) => {
+    return `_${text}_`;
+};
+exports.italic = italic;
+const strikethrough = (text) => {
+    return `~~${text}~~`;
+};
+exports.strikethrough = strikethrough;
+const underline = (text) => {
+    return `<u>${text}</u>`;
+};
+exports.underline = underline;
+const link = (text, href) => {
+    return `[${text}](${href})`;
+};
+exports.link = link;
+const codeBlock = (text, language) => {
+    if (language === "plain text")
+        language = "text";
+    return `\`\`\`${language}
+${text}
+\`\`\``;
+};
+exports.codeBlock = codeBlock;
+const heading1 = (text) => {
+    return `# ${text}`;
+};
+exports.heading1 = heading1;
+const heading2 = (text) => {
+    return `## ${text}`;
+};
+exports.heading2 = heading2;
+const heading3 = (text) => {
+    return `### ${text}`;
+};
+exports.heading3 = heading3;
+const quote = (text) => {
+    // the replace is done to handle multiple lines
+    return `> ${text.replace(/\n/g, "  \n> ")}`;
+};
+exports.quote = quote;
+const callout = (text, icon) => {
+    let emoji;
+    if ((icon === null || icon === void 0 ? void 0 : icon.type) === "emoji") {
+        emoji = icon.emoji;
+    }
+    // the replace is done to handle multiple lines
+    return `> ${emoji ? emoji + " " : ""}${text.replace(/\n/g, "  \n> ")}`;
+};
+exports.callout = callout;
+const bullet = (text, count) => {
+    let renderText = text.trim();
+    return count ? `${count}. ${renderText}` : `- ${renderText}`;
+};
+exports.bullet = bullet;
+const todo = (text, checked) => {
+    return checked ? `- [x] ${text}` : `- [ ] ${text}`;
+};
+exports.todo = todo;
+const image = (alt, href) => {
+    return `![${alt}](${href})`;
+};
+exports.image = image;
+const addTabSpace = (text, n = 0) => {
+    const tab = "	";
+    for (let i = 0; i < n; i++) {
+        if (text.includes("\n")) {
+            const multiLineText = text.split(/(?<=\n)/).join(tab);
+            text = tab + multiLineText;
+        }
+        else
+            text = tab + text;
+    }
+    return text;
+};
+exports.addTabSpace = addTabSpace;
+const divider = () => {
+    return "---";
+};
+exports.divider = divider;
+const toggle = (summary, children) => {
+    if (!summary)
+        return children || "";
+    return `<details>
+  <summary>${summary}</summary>
+
+${children || ""}
+
+  </details>`;
+};
+exports.toggle = toggle;
+const table = (cells) => {
+    return (0, markdown_table_1.default)(cells);
+};
+exports.table = table;
+//# sourceMappingURL=md.js.map
+
+/***/ }),
+
+/***/ 4250:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.modifyNumberedListObject = exports.getBlockChildren = void 0;
+const getBlockChildren = async (notionClient, block_id, totalPage) => {
+    try {
+        let result = [];
+        let pageCount = 0;
+        let start_cursor = undefined;
+        do {
+            const response = (await notionClient.blocks.children.list({
+                start_cursor: start_cursor,
+                block_id: block_id,
+            }));
+            result.push(...response.results);
+            start_cursor = response === null || response === void 0 ? void 0 : response.next_cursor;
+            pageCount += 1;
+        } while (start_cursor != null &&
+            (totalPage == null || pageCount < totalPage));
+        (0, exports.modifyNumberedListObject)(result);
+        return result;
+    }
+    catch (e) {
+        console.log(e);
+        return [];
+    }
+};
+exports.getBlockChildren = getBlockChildren;
+const modifyNumberedListObject = (blocks) => {
+    let numberedListIndex = 0;
+    for (const block of blocks) {
+        if ("type" in block && block.type === "numbered_list_item") {
+            // add numbers
+            // @ts-ignore
+            block.numbered_list_item.number = ++numberedListIndex;
+        }
+        else {
+            numberedListIndex = 0;
+        }
+    }
+};
+exports.modifyNumberedListObject = modifyNumberedListObject;
+//# sourceMappingURL=notion.js.map
+
+/***/ }),
+
+/***/ 6976:
+/***/ ((module) => {
+
+"use strict";
+/*!
+ * repeat-string <https://github.com/jonschlinkert/repeat-string>
+ *
+ * Copyright (c) 2014-2015, Jon Schlinkert.
+ * Licensed under the MIT License.
+ */
+
+
+
+/**
+ * Results cache
+ */
+
+var res = '';
+var cache;
+
+/**
+ * Expose `repeat`
+ */
+
+module.exports = repeat;
+
+/**
+ * Repeat the given `string` the specified `number`
+ * of times.
+ *
+ * **Example:**
+ *
+ * ```js
+ * var repeat = require('repeat-string');
+ * repeat('A', 5);
+ * //=> AAAAA
+ * ```
+ *
+ * @param {String} `string` The string to repeat
+ * @param {Number} `number` The number of times to repeat the string
+ * @return {String} Repeated string
+ * @api public
+ */
+
+function repeat(str, num) {
+  if (typeof str !== 'string') {
+    throw new TypeError('expected a string');
+  }
+
+  // cover common, quick use cases
+  if (num === 1) return str;
+  if (num === 2) return str + str;
+
+  var max = str.length * num;
+  if (cache !== str || typeof cache === 'undefined') {
+    cache = str;
+    res = '';
+  } else if (res.length >= max) {
+    return res.substr(0, max);
+  }
+
+  while (max > res.length && num > 1) {
+    if (num & 1) {
+      res += str;
+    }
+
+    num >>= 1;
+    str += str;
+  }
+
+  res += str;
+  res = res.substr(0, max);
+  return res;
+}
 
 
 /***/ }),

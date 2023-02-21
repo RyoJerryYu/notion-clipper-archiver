@@ -1,10 +1,10 @@
+import * as core from '@actions/core'
 import {isFullPage} from '@notionhq/client'
 import {
   PageObjectResponse,
   PartialPageObjectResponse,
   QueryDatabaseResponse
 } from '@notionhq/client/build/src/api-endpoints'
-import * as core from '@actions/core'
 
 function isFullPageOrWarning(
   result: PartialPageObjectResponse
@@ -20,31 +20,31 @@ function isFullPageOrWarning(
 
 export async function forEachPages<Res>(
   queryDatabase: (cursor?: string) => Promise<QueryDatabaseResponse>,
-  handlePages: (
+  handlePage: (
     page: PageObjectResponse
   ) => Promise<{res: Res; ok: true} | {ok: false}>
 ): Promise<Res[]> {
   const handledReses: Res[] = []
 
-  const filterAndHandleResults = async (queryRes: QueryDatabaseResponse) => {
+  const queryAndHandleResults = async (cursor?: string) => {
+    const queryRes = await queryDatabase(cursor)
     if (queryRes.results) {
       const pages = queryRes.results.filter(isFullPageOrWarning)
       for (const page of pages) {
-        const handledRes = await handlePages(page)
+        const handledRes = await handlePage(page)
         if (handledRes.ok) {
           handledReses.push(handledRes.res)
         }
       }
     }
+    return queryRes
   }
 
-  let res = await queryDatabase()
-  await filterAndHandleResults(res)
+  let res = await queryAndHandleResults()
 
   while (res.has_more && res.next_cursor) {
     const cursor = res.next_cursor
-    res = await queryDatabase(cursor)
-    await filterAndHandleResults(res)
+    res = await queryAndHandleResults(cursor)
   }
   return handledReses
 }
@@ -57,7 +57,7 @@ type WantedPage = {
   created_time?: string
 }
 
-export async function getResultFromPageResponse(
+export async function getResultFromPage(
   page: PageObjectResponse
 ): Promise<{res: WantedPage; ok: true} | {ok: false}> {
   const titleProperty = page.properties.Name
@@ -99,3 +99,16 @@ export async function getResultFromPageResponse(
 
   return {res: wantedRes, ok: true}
 }
+
+// export async function parseContentFromPage(
+//   pageId: string,
+//   // eslint-disable-next-line no-shadow
+//   listBlockChildren: (pageId: string) => Promise<ListBlockChildrenResponse>
+// ): Promise<string> {
+//   const retrieveBlockChildrenResponse = await listBlockChildren(pageId)
+//   const n2m = new NotionToMarkdown({
+//     notionClient: undefined
+//   })
+//   const blockChildren = retrieveBlockChildrenResponse.results
+//   return content
+// }

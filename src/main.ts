@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import {Client} from '@notionhq/client'
-import {forEachPages, getResultFromPageResponse} from './notion'
+import {NotionToMarkdown} from 'notion-to-md'
+import {forEachPages, getResultFromPage} from './notion'
 
 function queryFilter() {
   return {
@@ -42,10 +43,7 @@ async function run(): Promise<void> {
     }
 
     core.debug('querying database')
-    const allReses = await forEachPages(
-      queryDatabase,
-      getResultFromPageResponse
-    )
+    const allReses = await forEachPages(queryDatabase, getResultFromPage)
     core.debug('querying database done')
 
     core.info(`found ${allReses.length} pages`)
@@ -57,10 +55,14 @@ async function run(): Promise<void> {
     const pageId = allReses[0].id
     core.info(`pageId: ${pageId}`)
 
-    const retrieveBlockResponse = await notionCli.blocks.children.list({
-      block_id: pageId
+    const n2m = new NotionToMarkdown({
+      notionClient: notionCli
     })
-    core.info(`retrieveBlockResponse: ${JSON.stringify(retrieveBlockResponse)}`)
+
+    const mdBlocks = await n2m.pageToMarkdown(pageId)
+    core.info(`mdBlocks: ${JSON.stringify(mdBlocks)}`)
+    const mdString = n2m.toMarkdownString(mdBlocks)
+    core.info(`mdString: ${mdString}`)
   } catch (error) {
     if (error instanceof Error) {
       core.setFailed(error.message)
