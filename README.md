@@ -31,6 +31,19 @@ Here is an example for use this action with [Upload Artifact](https://github.com
     path: ${{ steps.notion_clipper_archiver.outputs.save_path }}
 ```
 
+The json file would look like this:
+
+```json
+{
+  "achived_at": "2021-02-16T07:42:00.000Z",
+  "pages": [
+    {...},
+    {...},
+    {...}
+  ]
+}
+```
+
 Each page should be saved with the following format:
 
 ```json
