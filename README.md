@@ -19,11 +19,12 @@ Here is an example for use this action with [Upload Artifact](https://github.com
 ```yaml
 - name: Archive Notion Clips
   uses: RyoJerryYu/notion-clipper-archiver@v1
+  id: notion_clipper_archiver
   with:
     notion_token: ${{ secrets.NOTION_TOKEN }}
     database_id: ${{ secrets.DATABASE_ID }}
     save_dir: ./data
-    save_file: clips.json
+    file_name: clips.json
 - name: Upload clips.json
   uses: actions/upload-artifact@v3
   with:
