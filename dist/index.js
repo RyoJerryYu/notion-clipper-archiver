@@ -163,7 +163,11 @@ function run() {
             yield io.mkdirP(save_dir);
             const save_path = path.join(save_dir, file_name);
             core.info(`saving to ${save_path}`);
-            yield writeFileAsync(save_path, JSON.stringify(allReses, null, 2));
+            const save_result = {
+                archived_at: new Date().toJSON(),
+                pages: allReses
+            };
+            yield writeFileAsync(save_path, JSON.stringify(save_result, null, 2));
             core.setOutput('db_id', dbId);
             core.setOutput('save_path', save_path);
         }
